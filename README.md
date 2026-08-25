@@ -77,15 +77,6 @@ dsh web
 
 HTTP 路由（`/api/shutdown`、`/api/restart`）只接受回环地址客户端，拒绝跨域请求，且仅接受 POST。`open_web` 只打开 `http://` / `https://` URL。
 
-## 与 dsh-shutdown-button 的差异
-
-- 旧版把 `node.exe` 路径、dsh 入口路径、工作目录、固定端口都写死了；现在改为从 `process.execPath`、`process.argv[1]`、`process.cwd()`、`webServer.port` 推导。
-- 旧版客户端 CSS 针对编译哈希类名（如 `.hHd-Xa_root`）；现改用槽位的 `wide` 属性做自适应。
-- 旧版启动器打开的是默认浏览器标签页；本版打开的是**独立应用窗口**（Chromium/Edge `--app=<url>`），并提供默认浏览器回退。
-
-## License
-
-MIT
 
 ---
 

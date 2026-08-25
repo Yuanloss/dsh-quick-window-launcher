@@ -10,7 +10,7 @@ On boot the plugin:
 - **Adapts both buttons to the sidebar** (compact icon in the 56px rail, icon + label pill when expanded).
 - **Registers an `open_web` model tool** — opens a URL in the system default browser's **new tab**.
 
-Everything is derived from the live harness at runtime — the Node binary, the dsh entry script, the working directory, the listening port, and `~/.dsh/logs`. **No machine path, user name, or install location is hard-coded**, so it is safe to publish and works for anyone.
+Everything is derived from the live harness at runtime — the Node binary, the dsh entry script, the working directory, the listening port, and `~/.dsh/logs`.
 
 ---
 
@@ -78,15 +78,6 @@ Example:
 
 The HTTP routes (`/api/shutdown`, `/api/restart`) accept only loopback clients and reject cross-origin requests; they are POST-only. `open_web` only opens `http://` / `https://` URLs.
 
-## What changed relative to dsh-shutdown-button
-
-- The old bundle hard-coded a `node.exe` path, a dsh entry path, a working directory, and a fixed port. Those are now derived from `process.execPath`, `process.argv[1]`, `process.cwd()`, and `webServer.port`.
-- The old client CSS targeted build-hashed class names (`.hHd-Xa_root`). Those are gone; positioning now uses the slot's `wide` prop.
-- The old launcher opened the default browser tab; this one opens a **standalone app-mode window** (Chromium/Edge `--app=<url>`), with a default-browser fallback.
-
-## License
-
-MIT
 
 ---
 
