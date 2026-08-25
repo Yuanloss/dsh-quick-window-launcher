@@ -1,70 +1,69 @@
 # dsh-quick-window-launcher
 
-Launch DeepSeek Harness web **in its own standalone app-style window** — from a desktop shortcut — instead of jumping to a default-browser tab — plus shutdown / restart power controls and an `open_web` tool.
+用桌面快捷方式把 DeepSeek Harness web **以独立的应用窗口（app 窗口）打开**——而不是跳到默认浏览器的标签页——并提供关闭 / 重启电源控制与一个 `open_web` 工具。
 
-On boot the plugin:
+插件启动时会：
 
-- **Generates a desktop shortcut** (`DeepSeek Harness.lnk`) that starts the harness if it isn't running, then opens it in a **dedicated app-mode window** (Chromium & Edge `--app=<url>`), not a tab. Falls back to the system default browser only when no Chromium-based browser is installed.
-- **Adds a shutdown button** (⏻) at the sidebar foot — gracefully stops the harness (SIGTERM → dispose → flush persistence → exit).
-- **Adds a restart button** (⟳) — gracefully stops the process, then relaunches a fresh instance via a persistent watchdog.
-- **Adapts both buttons to the sidebar** (compact icon in the 56px rail, icon + label pill when expanded).
-- **Registers an `open_web` model tool** — opens a URL in the system default browser's **new tab**.
+- **生成桌面快捷方式**（`DeepSeek Harness.lnk`）：若 harness 未在运行则先启动，然后用**专属应用窗口**打开（Chromium / Edge 的 `--app=<url>`，无标签栏、无地址栏）。仅当本机没有安装任何 Chromium 系浏览器时才回退到系统默认浏览器。
+- **在侧栏底部新增一个关闭按钮**（⏻）——优雅停止 harness（SIGTERM → 释放资源 → 落盘会话 → 退出）。
+- **新增一个重启按钮**（⟳）——优雅停止进程，再由常驻看门狗拉起新实例。
+- **让两个按钮自适应侧栏**（56px 收起态显示纯图标圆钮，展开态显示 图标+文字 徽章）。
+- **注册 `open_web` 模型工具**——在系统默认浏览器的**新标签页**打开指定 URL。
 
-Everything is derived from the live harness at runtime — the Node binary, the dsh entry script, the working directory, the listening port, and `~/.dsh/logs`. **No machine path, user name, or install location is hard-coded**, so it is safe to publish and works for anyone.
-
+所有数据都在运行时从当前 harness 推导——Node 二进制、dsh 入口脚本、工作目录、监听端口，以及 `~/.dsh/logs`。
 ---
 
-## Install
+## 安装
 
-The plugin targets the `web` profile. Add it with the `dsh` plugin command:
+该插件面向 `web` 配置文件。用 `dsh` 插件命令添加：
 
 ```powershell
-dsh plugin --profile web add <you>/dsh-quick-window-launcher
+dsh plugin --profile web add Yuanloss/dsh-quick-window-launcher
 ```
 
-Then (re)start the harness:
+然后（重新）启动 harness：
 
 ```powershell
 dsh web
 ```
 
-On the first boot the plugin writes its helper scripts into `%USERPROFILE%\.dsh\logs`, starts the persistent restart watchdog, and creates the desktop shortcut (only if it doesn't already exist — it never overrides a shortcut you made yourself).
+首次启动时，插件会把辅助脚本写入 `%USERPROFILE%\.dsh\logs`、拉起持久重启看门狗，并创建桌面快捷方式（仅当其不存在时——绝不会覆盖你自己创建的快捷方式）。
 
-> A restart is required for a new bundle to load. The desktop shortcut and the sidebar buttons appear once the plugin is active.
+> 新插件 bundle 需要重启才会加载。桌面快捷方式和侧栏按钮会在插件激活后出现。
 
-## What the desktop shortcut does
+## 桌面快捷方式做什么
 
-Double-click **`DeepSeek Harness`** on your desktop. The launcher:
+双击桌面上的 **`DeepSeek Harness`**，启动器会：
 
-1. Checks whether the harness is already listening on its port.
-2. If not, starts it (hidden) with the same Node binary / entry the plugin itself runs under.
-3. Waits until the UI is reachable.
-4. **Opens it in a standalone app-mode window** — it finds Google Chrome or Microsoft Edge and launches it with `--app=<url>`, so the interface opens in its own borderless window (no tab strip, no address bar). If no Chromium-based browser is installed it falls back to your default browser.
+1. 检查 harness 是否已在端口监听。
+2. 若未运行，则（隐藏地）用插件自身运行所用的同一个 Node 二进制 / 入口启动它。
+3. 等待 UI 可访问。
+4. **以独立应用窗口打开**——找到 Google Chrome 或 Microsoft Edge，用 `--app=<url>` 启动，界面会在它自己的无边框窗口里打开（没有标签栏、没有地址栏）。若没有 Chromium 系浏览器，则回退到默认浏览器。
 
-## Features
+## 功能
 
-### Shutdown
-A red power icon beside the sidebar foot. Asking for confirmation stops the harness gracefully — session data is flushed and the page is closed (or rewritten to a "closed" note if the browser blocks `window.close()`).
+### 关闭
+侧栏底部一个红色电源图标。确认后优雅停止 harness——会话数据会落盘，页面关闭（若浏览器拦截 `window.close()`，则改写为“已关闭”提示页）。
 
-### Restart
-A blue restart icon that gracefully stops the process and then relaunches a fresh instance. Restart is done by a **watchdog running outside the harness process tree** (the harness cleans up its own child processes, so a click-time spawn would die). The page shows a "restarting…" screen that polls until the fresh instance answers, then reloads.
+### 重启
+一个蓝色重启图标，优雅停止进程后拉起重启新实例。重启由**运行在 harness 进程树之外**的看门狗完成（harness 会清理自己的子进程，所以点击时临时 spawn 的进程会被杀掉）。页面显示“正在重启…”界面，轮询到新实例恢复后自动刷新。
 
-### Adaptive placement (`props.wide`)
-Both buttons use the sidebar's `wide` column-state prop from the `sidebar.footer.action` slot: in the rail they are icon-only circles, expanded they become icon + label pills. No product CSS class names are targeted.
+### 自适应位置（`props.wide`）
+两个按钮都使用 `sidebar.footer.action` 槽位传下来的侧栏 `wide` 列状态：收起态是纯图标圆钮，展开态是 图标+文字 徽章。不再针对任何产品 CSS 类名。
 
-### `open_web` tool
-The model can call `open_web` with an `https://…`/`http://…` URL to open it in the system default browser's new tab — matching the harness convention of opening web pages externally rather than framing them.
+### `open_web` 工具
+模型可用 `https://…` / `http://…` URL 调用 `open_web`，在系统默认浏览器的新标签页打开——符合 harness“外部打开网页而不是内嵌”的约定。
 
-## Settings
+## 配置项
 
-The row accepts optional config (set it via a profile patch override):
+该行可选配置（通过 profile patch 覆盖）：
 
-| key | default | meaning |
+| 键 | 默认值 | 说明 |
 | --- | --- | --- |
-| `createShortcut` | `true` | generate the desktop shortcut at boot (set `false` to opt out) |
-| `desktopName` | `DeepSeek Harness` | base file name of the shortcut |
+| `createShortcut` | `true` | 启动时生成桌面快捷方式（设为 `false` 关闭） |
+| `desktopName` | `DeepSeek Harness` | 快捷方式的基础文件名 |
 
-Example:
+示例：
 
 ```yaml
 - id: quick-window-launcher
@@ -74,16 +73,20 @@ Example:
     desktopName: 'DeepSeek Harness'
 ```
 
-## Security
+## 安全
 
-The HTTP routes (`/api/shutdown`, `/api/restart`) accept only loopback clients and reject cross-origin requests; they are POST-only. `open_web` only opens `http://` / `https://` URLs.
+HTTP 路由（`/api/shutdown`、`/api/restart`）只接受回环地址客户端，拒绝跨域请求，且仅接受 POST。`open_web` 只打开 `http://` / `https://` URL。
 
-## What changed relative to dsh-shutdown-button
+## 与 dsh-shutdown-button 的差异
 
-- The old bundle hard-coded a `node.exe` path, a dsh entry path, a working directory, and a fixed port. Those are now derived from `process.execPath`, `process.argv[1]`, `process.cwd()`, and `webServer.port`.
-- The old client CSS targeted build-hashed class names (`.hHd-Xa_root`). Those are gone; positioning now uses the slot's `wide` prop.
-- The old launcher opened the default browser tab; this one opens a **standalone app-mode window** (Chromium/Edge `--app=<url>`), with a default-browser fallback.
+- 旧版把 `node.exe` 路径、dsh 入口路径、工作目录、固定端口都写死了；现在改为从 `process.execPath`、`process.argv[1]`、`process.cwd()`、`webServer.port` 推导。
+- 旧版客户端 CSS 针对编译哈希类名（如 `.hHd-Xa_root`）；现改用槽位的 `wide` 属性做自适应。
+- 旧版启动器打开的是默认浏览器标签页；本版打开的是**独立应用窗口**（Chromium/Edge `--app=<url>`），并提供默认浏览器回退。
 
 ## License
 
 MIT
+
+---
+
+**语言 / Language:** [English](README.en.md) | [中文](README.md)
