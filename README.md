@@ -61,7 +61,7 @@ dsh web
 
 | 键 | 默认值 | 说明 |
 | --- | --- | --- |
-| `createShortcut` | `true` | 启动时生成桌面快捷方式（设为 `false` 关闭） |
+| `createShortcut` | `true` | 启动时生成/刷新桌面快捷方式（指向本插件的应用窗口启动器；设为 `false` 关闭） |
 | `desktopName` | `DeepSeek Harness` | 快捷方式的基础文件名 |
 
 示例：

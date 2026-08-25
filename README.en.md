@@ -62,7 +62,7 @@ The row accepts optional config (set it via a profile patch override):
 
 | key | default | meaning |
 | --- | --- | --- |
-| `createShortcut` | `true` | generate the desktop shortcut at boot (set `false` to opt out) |
+| `createShortcut` | `true` | generate/refresh the desktop shortcut to point at this plugin's app-window launcher (set `false` to opt out) |
 | `desktopName` | `DeepSeek Harness` | base file name of the shortcut |
 
 Example:
