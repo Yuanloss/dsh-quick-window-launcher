@@ -8,6 +8,7 @@ On boot the plugin:
 - **Adds a shutdown button** (⏻) at the sidebar foot — gracefully stops the harness (SIGTERM → dispose → flush persistence → exit).
 - **Adds a restart button** (⟳) — gracefully stops the process, then relaunches a fresh instance via a persistent watchdog.
 - **Adapts both buttons to the sidebar** (compact icon in the 56px rail, icon + label pill when expanded).
+- **Adds a DSH update-check button** (⬆) — queries npm for the latest `@deepseek-ai/dsh` version and reports the **current version** and whether it is **up to date**.
 - **Registers an `open_web` model tool** — opens a URL in the system default browser's **new tab**.
 
 Everything is derived from the live harness at runtime — the Node binary, the dsh entry script, the working directory, the listening port, and `~/.dsh/logs`.
