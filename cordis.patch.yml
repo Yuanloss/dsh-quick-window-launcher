@@ -1,0 +1,14 @@
+# dsh-quick-window-launcher bundle patch layer.
+#
+# Inserts the host half. The row id is the plugin's loader id; `name` is the
+# npm package name (must match package.json "name").
+#
+# Optional config (override via a profile patch layer if you want to opt out):
+#   createShortcut: false  -> do not generate a desktop shortcut at boot
+#   desktopName: "My Harness" -> the .lnk base name (default "DeepSeek Harness")
+- insert:
+    - id: quick-window-launcher
+      name: 'dsh-quick-window-launcher'
+      # config:
+      #   createShortcut: true
+      #   desktopName: 'DeepSeek Harness'
