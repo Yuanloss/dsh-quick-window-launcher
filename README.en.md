@@ -7,7 +7,7 @@ On boot the plugin:
 - **Generates a desktop shortcut** (`DeepSeek Harness.lnk`) that starts the harness if it isn't running, then opens it in a **dedicated app-mode window** (Chromium & Edge `--app=<url>`), not a tab. Falls back to the system default browser only when no Chromium-based browser is installed.
 - **Adds a shutdown button** (⏻) at the sidebar foot — gracefully stops the harness (SIGTERM → dispose → flush persistence → exit).
 - **Adds a restart button** (⟳) — gracefully stops the process, then relaunches a fresh instance via a persistent watchdog.
-- **Adds three compact icon-only buttons** (30px, tooltip on hover) at the sidebar foot: shutdown / restart / DSH update check.
+- **Adds a segmented power-control bar** at the sidebar foot: three icon-only segments in a glass pill (shutdown / restart / DSH update check), each with a hover glow and tooltip; when the sidebar is collapsed it degrades to a standalone circular red power key.
 - **Adds a DSH update-check button** (⬇) — queries npm for the latest `@deepseek-ai/dsh` version and reports the **current version** and whether it is **up to date**.
 - **Registers an `open_web` model tool** — opens a URL in the system default browser's **new tab**.
 
@@ -65,6 +65,8 @@ A red power icon beside the sidebar foot. Asking for confirmation stops the harn
 
 ### Restart
 A blue restart icon that gracefully stops the process and then relaunches a fresh instance. Restart is done by a **watchdog running outside the harness process tree** (the harness cleans up its own child processes, so a click-time spawn would die). The page shows a "restarting…" screen that polls until the fresh instance answers, then reloads.
+
+The watchdog **self-heals with a heartbeat and a released lock**: after each restart it immediately listens again, and any transient error releases the lock and leaves a trace — it can never go deaf and ignore later requests after its first restart (a v0.2.4 bug fixed in v0.2.5).
 
 ### `open_web` tool
 The model can call `open_web` with an `https://…`/`http://…` URL to open it in the system default browser's new tab — matching the harness convention of opening web pages externally rather than framing them.
