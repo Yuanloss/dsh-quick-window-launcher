@@ -29,13 +29,13 @@ Then (re)start the harness:
 dsh web
 ```
 
-On the first boot the plugin writes its helper scripts into `%USERPROFILE%\.dsh\logs`, starts the persistent restart watchdog, and creates/refreshes the `DeepSeek Harness.lnk` desktop shortcut.
+On the first boot the plugin writes two **pure-Node helper scripts** (`.cjs`) into `%USERPROFILE%\.dsh\logs`, starts the persistent restart watchdog (a node process too), and creates/refreshes the `DeepSeek Harness.lnk` desktop shortcut (which targets `node.exe` directly). **No `.ps1` file is ever written and no PowerShell runtime is involved** — antivirus products such as Huorong quarantine any newly created PowerShell script on sight (observed live; this version rewrote the whole host side for that reason).
 
 > A restart is required for a new bundle to load. The desktop shortcut and the sidebar buttons appear once the plugin is active.
 
 ## What the desktop shortcut does
 
-Double-click **`DeepSeek Harness`** on your desktop. The launcher:
+Double-click **`DeepSeek Harness`** on your desktop (its target is simply `node.exe dsh-launch-web.cjs`). The launcher:
 
 1. Checks whether the harness is already listening on its port.
 2. If not, starts it (hidden) with the same Node binary / entry the plugin itself runs under.
@@ -44,25 +44,19 @@ Double-click **`DeepSeek Harness`** on your desktop. The launcher:
 
 ## Manual desktop shortcut (fallback)
 
-Normally the plugin creates `DeepSeek Harness.lnk` automatically on boot. If your desktop is redirected (e.g. by OneDrive) or the drive is not ready at boot time, create it manually with either of:
+Normally the plugin refreshes `DeepSeek Harness.lnk` automatically on every boot. In rare cases it may be missing (e.g. a OneDrive-redirected desktop that took long to mount); recreate it with one command:
 
-**A) Run the script the plugin already generated**
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.dsh\logs\dsh-ensure-desktop-shortcut.ps1"
-```
-
-**B) One PowerShell command**
-```powershell
-$l = "$env:USERPROFILE\.dsh\logs\dsh-launch-web.ps1"
+$l = "$env:USERPROFILE\.dsh\logs\dsh-launch-web.cjs"
 $d = [Environment]::GetFolderPath('Desktop')
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d 'DeepSeek Harness.lnk'))
-$s.TargetPath = (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
-$s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$l`""
-$s.WorkingDirectory = (Split-Path $l -Parent)
+$s.TargetPath = (Get-Command node).Source
+$s.Arguments = "`"$l`""
+$s.WorkingDirectory = Split-Path $l -Parent
 $s.Save()
 ```
 
-> The result is logged to `%USERPROFILE%\.dsh\logs\dsh-shortcut.log` — check it if the shortcut fails to appear.
+> The plugin's automatic refreshes are logged to `%USERPROFILE%\.dsh\logs\dsh-shortcut.log` — check it if the shortcut fails to appear.
 
 ## Features
 
@@ -71,9 +65,6 @@ A red power icon beside the sidebar foot. Asking for confirmation stops the harn
 
 ### Restart
 A blue restart icon that gracefully stops the process and then relaunches a fresh instance. Restart is done by a **watchdog running outside the harness process tree** (the harness cleans up its own child processes, so a click-time spawn would die). The page shows a "restarting…" screen that polls until the fresh instance answers, then reloads.
-
-### Button style
-The three buttons are 30×30 icon-only circles (shutdown ⏻ red, restart ⟳ blue, DSH update ⬇ amber) with a fixed size and `flex: 0 0 auto` so the sidebar flex layout cannot stretch them out of shape; a `title` tooltip is shown on hover. No product CSS class names are targeted.
 
 ### `open_web` tool
 The model can call `open_web` with an `https://…`/`http://…` URL to open it in the system default browser's new tab — matching the harness convention of opening web pages externally rather than framing them.
@@ -86,6 +77,7 @@ The row accepts optional config (set it via a profile patch override):
 | --- | --- | --- |
 | `createShortcut` | `true` | generate/refresh the desktop shortcut to point at this plugin's app-window launcher (set `false` to opt out) |
 | `desktopName` | `DeepSeek Harness` | base file name of the shortcut |
+| `watchdog` | `true` | write and launch the restart watchdog at boot (`/api/restart` depends on it; with `false` the restart button degrades to shutdown-only) |
 
 Example:
 
@@ -95,11 +87,24 @@ Example:
   config:
     createShortcut: true
     desktopName: 'DeepSeek Harness'
+    watchdog: true
 ```
 
 ## Security
 
 The HTTP routes (`/api/shutdown`, `/api/restart`) accept only loopback clients and reject cross-origin requests; they are POST-only. `open_web` only opens `http://` / `https://` URLs.
+
+### Antivirus note (applies from v0.2.4)
+
+The previous implementation wrote `.ps1` helper scripts into `%USERPROFILE%\.dsh\logs` and ran them with PowerShell — **Huorong was observed quarantining any newly created `.ps1` on sight**, which broke the watchdog, the launcher and the shortcut at once. **This version removes PowerShell entirely**:
+
+- The restart watchdog and the app-window launcher are **plain Node `.cjs` scripts run by node.exe**; the desktop shortcut's target is literally `node.exe + a .cjs path`, indistinguishable from any dev tool;
+- Shortcut creation/refresh is a **one-shot inline command** (system COM) at boot — no script file ever lands on disk for it;
+- Opening URLs uses `rundll32 url.dll,FileProtocolHandler` (the classic Windows way) or native `open` / `xdg-open` elsewhere;
+- All generated code is plain readable text — no obfuscation, no encoded payloads, no registry / scheduled-task / service / run-key touches;
+- The only network activity is loopback port probes plus a version lookup on the npm registry.
+
+The single resident process is one node.exe watchdog polling a request file once per second. To opt out set `watchdog: false`; after uninstalling, end that node.exe process and delete `dsh-restart-watchdog*` / `dsh-launch-web.cjs` under `%USERPROFILE%\.dsh\logs`. If your antivirus previously quarantined the old `.ps1` files there is nothing to restore — the new version no longer uses them; adding `%USERPROFILE%\.dsh\logs` to your antivirus trust zone is still a reasonable belt-and-suspenders measure.
 
 
 ---

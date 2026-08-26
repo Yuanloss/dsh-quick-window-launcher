@@ -28,13 +28,13 @@ dsh plugin --profile web add Yuanloss/dsh-quick-window-launcher
 dsh web
 ```
 
-首次启动时，插件会把辅助脚本写入 `%USERPROFILE%\.dsh\logs`、拉起持久重启看门狗，并创建/刷新桌面快捷方式 `DeepSeek Harness.lnk`。
+首次启动时，插件会把两个**纯 Node 辅助脚本**（`.cjs`）写入 `%USERPROFILE%\.dsh\logs`、拉起持久重启看门狗（同样是 node 进程），并创建/刷新桌面快捷方式 `DeepSeek Harness.lnk`（快捷方式直接指向 `node.exe`）。**全程不写任何 `.ps1` 文件、不依赖 PowerShell 运行时**——避免被火绒等杀毒软件按“新建 PowerShell 脚本”启发式直接隔离（实测复现过该问题，本版为此重写了整个宿主侧实现）。
 
 > 新插件 bundle 需要重启才会加载。桌面快捷方式和侧栏按钮会在插件激活后出现。
 
 ## 桌面快捷方式做什么
 
-双击桌面上的 **`DeepSeek Harness`**，启动器会：
+双击桌面上的 **`DeepSeek Harness`**（目标就是 `node.exe dsh-launch-web.cjs`），启动器会：
 
 1. 检查 harness 是否已在端口监听。
 2. 若未运行，则（隐藏地）用插件自身运行所用的同一个 Node 二进制 / 入口启动它。
@@ -43,25 +43,19 @@ dsh web
 
 ## 手动创建桌面快捷方式（兜底）
 
-正常情况插件会在启动时自动创建 `DeepSeek Harness.lnk`。若你的桌面被 OneDrive 等重定向、或启动瞬间磁盘未就绪导致没自动生成，可手动执行（二选一）：
+正常情况插件会在每次启动时自动刷新 `DeepSeek Harness.lnk`。若极端情况下没生成（如桌面被 OneDrive 重定向且长时间未挂载），可手动执行一条命令重建：
 
-**方式 A：运行插件已生成好的脚本**
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.dsh\logs\dsh-ensure-desktop-shortcut.ps1"
-```
-
-**方式 B：一条 PowerShell 命令手动创建**
-```powershell
-$l = "$env:USERPROFILE\.dsh\logs\dsh-launch-web.ps1"
+$l = "$env:USERPROFILE\.dsh\logs\dsh-launch-web.cjs"
 $d = [Environment]::GetFolderPath('Desktop')
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d 'DeepSeek Harness.lnk'))
-$s.TargetPath = (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
-$s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$l`""
-$s.WorkingDirectory = (Split-Path $l -Parent)
+$s.TargetPath = (Get-Command node).Source
+$s.Arguments = "`"$l`""
+$s.WorkingDirectory = Split-Path $l -Parent
 $s.Save()
 ```
 
-> 创建结果会写入日志 `%USERPROFILE%\.dsh\logs\dsh-shortcut.log`，失败时可直接查看原因。
+> 插件自动刷新的结果会写入日志 `%USERPROFILE%\.dsh\logs\dsh-shortcut.log`，失败时可直接查看原因。
 
 ## 功能
 
@@ -70,9 +64,6 @@ $s.Save()
 
 ### 重启
 一个蓝色重启图标，优雅停止进程后拉起重启新实例。重启由**运行在 harness 进程树之外**的看门狗完成（harness 会清理自己的子进程，所以点击时临时 spawn 的进程会被杀掉）。页面显示“正在重启…”界面，轮询到新实例恢复后自动刷新。
-
-### 按钮样式
-三个按钮都是 30×30 的纯图标圆钮（关闭 ⏻ 红、重启 ⟳ 蓝、检查 DSH 更新 ⬇ 琥珀），用固定尺寸 + `flex: 0 0 auto` 保证不被侧栏 flex 布局拉伸变形，hover 有 title 提示。不再依赖任何产品 CSS 类名。
 
 ### `open_web` 工具
 模型可用 `https://…` / `http://…` URL 调用 `open_web`，在系统默认浏览器的新标签页打开——符合 harness“外部打开网页而不是内嵌”的约定。
@@ -85,6 +76,7 @@ $s.Save()
 | --- | --- | --- |
 | `createShortcut` | `true` | 启动时生成/刷新桌面快捷方式（指向本插件的应用窗口启动器；设为 `false` 关闭） |
 | `desktopName` | `DeepSeek Harness` | 快捷方式的基础文件名 |
+| `watchdog` | `true` | 启动时写入并拉起重启看门狗（`/api/restart` 依赖它；设为 `false` 后重启按钮退化为仅关闭） |
 
 示例：
 
@@ -94,11 +86,24 @@ $s.Save()
   config:
     createShortcut: true
     desktopName: 'DeepSeek Harness'
+    watchdog: true
 ```
 
 ## 安全
 
 HTTP 路由（`/api/shutdown`、`/api/restart`）只接受回环地址客户端，拒绝跨域请求，且仅接受 POST。`open_web` 只打开 `http://` / `https://` URL。
+
+### 杀毒软件说明（v0.2.4 起适用）
+
+旧版实现会在 `%USERPROFILE%\.dsh\logs` 写入 `.ps1` 辅助脚本并用 PowerShell 执行——**实测火绒会把任何新建的 `.ps1` 直接隔离删除**，导致看门狗、启动器、快捷方式全部失效。**本版已彻底移除 PowerShell 依赖**：
+
+- 看门狗与应用窗口启动器都是**纯 Node `.cjs` 脚本**，由 node.exe 直接运行；桌面快捷方式的目标就是 `node.exe + .cjs`，与任何开发工具无异；
+- 快捷方式的创建/刷新是启动时**一次性内联命令**（调用系统 COM），不在磁盘上留下任何脚本文件；
+- 打开网页用 `rundll32 url.dll,FileProtocolHandler`（Windows 经典方式）或系统原生 `open` / `xdg-open`；
+- 全部脚本明文可读、无混淆无编码载荷，不触碰注册表、计划任务、服务或开机启动项；
+- 所有网络访问只有：回环端口探测 + npm registry 版本查询。
+
+常驻的只有一个 node.exe 看门狗进程（每秒轮询一次请求文件）。若不接受，把配置里的 `watchdog` 设为 `false`；卸载插件后可结束该 node.exe 进程并删除 `%USERPROFILE%\.dsh\logs` 下的 `dsh-restart-watchdog*` / `dsh-launch-web.cjs` 文件。若你的杀软曾隔离过旧版 `.ps1` 文件，升级后无需恢复它们——新版已不再使用；也可以把 `%USERPROFILE%\.dsh\logs` 加入杀软信任区以绝后患。
 
 
 ---
