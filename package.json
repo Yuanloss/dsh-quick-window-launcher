@@ -1,6 +1,6 @@
 {
   "name": "dsh-quick-window-launcher",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Start DeepSeek Harness web in its own standalone app-style window from a desktop shortcut (Chromium app-mode, not the default browser tab), plus sidebar shutdown/restart actions that adapt to the rail/wide layout and an open_web tool that opens a URL in the system default browser's new tab.",
   "type": "module",
   "main": "lib/index.js",
