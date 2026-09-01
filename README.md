@@ -37,9 +37,18 @@ dsh web
 双击桌面上的 **`DeepSeek Harness`**（目标就是 `node.exe dsh-launch-web.cjs`），启动器会：
 
 1. 检查 harness 是否已在端口监听。
-2. 若未运行，则（隐藏地）用插件自身运行所用的同一个 Node 二进制 / 入口启动它。
-3. 等待 UI 可访问。
-4. **以独立应用窗口打开**——找到 Google Chrome 或 Microsoft Edge，用 `--app=<url>` 启动，界面会在它自己的无边框窗口里打开（没有标签栏、没有地址栏）。若没有 Chromium 系浏览器，则回退到默认浏览器。
+2. **多信号存活判定**：若端口未监听，还会检查任务看板账本锁（`~/.dsh/task-board/ledger-v2.lock`）的主人 PID 是否存活——若旧实例**活着但没在服务**，启动器**不会**再拉起第二个实例（那会撞上其他插件的单实例锁而死），而是写出诊断页与 `dsh-launcher.log` 并退出。
+3. 若确实未运行，则（隐藏地）用插件自身运行所用的同一个 Node 二进制 / 入口启动它。
+4. 等待 UI 可访问（若启动的实例提前退出，会写错误页而不是打开指向死端口的窗口）。
+5. **以独立应用窗口打开**——找到 Google Chrome 或 Microsoft Edge，用 `--app=<url>` 启动，界面会在它自己的无边框窗口里打开。若没有 Chromium 系浏览器，则回退到默认浏览器。
+
+每次启动的动作（端口/锁判定、spawn、就绪、开窗）都会写入 `~/.dsh/logs/dsh-launcher.log`；排查问题可运行：
+
+```powershell
+node "$env:USERPROFILE\.dsh\logs\dsh-launch-web.cjs" --diagnose
+```
+
+它会打印端口状态、任务板锁主人、看门狗心跳与最近日志。
 
 ## 手动创建桌面快捷方式（兜底）
 
@@ -78,6 +87,7 @@ $s.Save()
 | --- | --- | --- |
 | `createShortcut` | `true` | 启动时生成/刷新桌面快捷方式（指向本插件的应用窗口启动器；设为 `false` 关闭） |
 | `desktopName` | `DeepSeek Harness` | 快捷方式的基础文件名 |
+| `desktopPath` | （自动解析） | **手动指定桌面目录**（OneDrive 重定向、网络盘等自动解析失败时用）。解析优先级：`desktopPath` → Windows 注册表 `User Shell Folders\Desktop`（纯 Node 读取）→ `~/Desktop` |
 | `watchdog` | `true` | 启动时写入并拉起重启看门狗（`/api/restart` 依赖它；设为 `false` 后重启按钮退化为仅关闭） |
 
 示例：
@@ -95,12 +105,12 @@ $s.Save()
 
 HTTP 路由（`/api/shutdown`、`/api/restart`）只接受回环地址客户端，拒绝跨域请求，且仅接受 POST。`open_web` 只打开 `http://` / `https://` URL。
 
-### 杀毒软件说明（v0.2.4 起适用）
+### 杀毒软件说明（v0.2.6 起适用）
 
-旧版实现会在 `%USERPROFILE%\.dsh\logs` 写入 `.ps1` 辅助脚本并用 PowerShell 执行——**实测火绒会把任何新建的 `.ps1` 直接隔离删除**，导致看门狗、启动器、快捷方式全部失效。**本版已彻底移除 PowerShell 依赖**：
+旧版实现会在 `%USERPROFILE%\.dsh\logs` 写入 `.ps1` 辅助脚本并用 PowerShell 执行——**实测火绒会把任何新建的 `.ps1` 直接隔离删除**，导致看门狗、启动器、快捷方式全部失效。**本版彻底移除 `.ps1` 文件**：
 
 - 看门狗与应用窗口启动器都是**纯 Node `.cjs` 脚本**，由 node.exe 直接运行；桌面快捷方式的目标就是 `node.exe + .cjs`，与任何开发工具无异；
-- 快捷方式的创建/刷新是启动时**一次性内联命令**（调用系统 COM），不在磁盘上留下任何脚本文件；
+- 快捷方式的创建/刷新是启动时**一次性内联命令**（调用系统 COM），不在磁盘上留下任何脚本文件；且以**可见最小化**方式派生——实测隐藏窗口派生的 powershell 会被火绒静默杀掉（快捷方式静默消失的根因），而可见控制台下的 powershell 一直正常。代价是启动瞬间有一个一闪而过的最小化窗口；
 - 打开网页用 `rundll32 url.dll,FileProtocolHandler`（Windows 经典方式）或系统原生 `open` / `xdg-open`；
 - 全部脚本明文可读、无混淆无编码载荷，不触碰注册表、计划任务、服务或开机启动项；
 - 所有网络访问只有：回环端口探测 + npm registry 版本查询。

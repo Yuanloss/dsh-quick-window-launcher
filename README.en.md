@@ -38,9 +38,18 @@ On the first boot the plugin writes two **pure-Node helper scripts** (`.cjs`) in
 Double-click **`DeepSeek Harness`** on your desktop (its target is simply `node.exe dsh-launch-web.cjs`). The launcher:
 
 1. Checks whether the harness is already listening on its port.
-2. If not, starts it (hidden) with the same Node binary / entry the plugin itself runs under.
-3. Waits until the UI is reachable.
-4. **Opens it in a standalone app-mode window** — it finds Google Chrome or Microsoft Edge and launches it with `--app=<url>`, so the interface opens in its own borderless window (no tab strip, no address bar). If no Chromium-based browser is installed it falls back to your default browser.
+2. **Multi-signal liveness check**: when the port is closed it also checks the task-board ledger lock (`~/.dsh/task-board/ledger-v2.lock`) — if its owner PID is still alive, the previous instance is half-alive, so the launcher does **NOT** spawn a second instance (it would die inside another plugin's single-instance guard); instead it writes a diagnostic page and `dsh-launcher.log` and exits.
+3. If it really is not running, starts it (hidden) with the same Node binary / entry the plugin itself runs under.
+4. Waits until the UI is reachable (if the spawned instance exits early, an error page is shown instead of opening a window pointed at a dead port).
+5. **Opens it in a standalone app-mode window** — it finds Google Chrome or Microsoft Edge and launches it with `--app=<url>`, so the interface opens in its own borderless window. If no Chromium-based browser is installed it falls back to your default browser.
+
+Every launcher decision (port/lock check, spawn, readiness, window) is written to `~/.dsh/logs/dsh-launcher.log`. For troubleshooting run:
+
+```powershell
+node "$env:USERPROFILE\.dsh\logs\dsh-launch-web.cjs" --diagnose
+```
+
+It prints port status, task-board lock owner, watchdog heartbeat and recent log lines.
 
 ## Manual desktop shortcut (fallback)
 
@@ -79,6 +88,7 @@ The row accepts optional config (set it via a profile patch override):
 | --- | --- | --- |
 | `createShortcut` | `true` | generate/refresh the desktop shortcut to point at this plugin's app-window launcher (set `false` to opt out) |
 | `desktopName` | `DeepSeek Harness` | base file name of the shortcut |
+| `desktopPath` | (auto) | **explicitly set the desktop directory** (OneDrive-redirected / network desktops where auto-detection fails). Resolution order: `desktopPath` → Windows registry `User Shell Folders\Desktop` (read from Node) → `~/Desktop` |
 | `watchdog` | `true` | write and launch the restart watchdog at boot (`/api/restart` depends on it; with `false` the restart button degrades to shutdown-only) |
 
 Example:
@@ -96,12 +106,12 @@ Example:
 
 The HTTP routes (`/api/shutdown`, `/api/restart`) accept only loopback clients and reject cross-origin requests; they are POST-only. `open_web` only opens `http://` / `https://` URLs.
 
-### Antivirus note (applies from v0.2.4)
+### Antivirus note (applies from v0.2.6)
 
-The previous implementation wrote `.ps1` helper scripts into `%USERPROFILE%\.dsh\logs` and ran them with PowerShell — **Huorong was observed quarantining any newly created `.ps1` on sight**, which broke the watchdog, the launcher and the shortcut at once. **This version removes PowerShell entirely**:
+The previous implementation wrote `.ps1` helper scripts into `%USERPROFILE%\.dsh\logs` and ran them with PowerShell — **Huorong was observed quarantining any newly created `.ps1` on sight**, which broke the watchdog, the launcher and the shortcut at once. **This version removes all `.ps1` files**:
 
 - The restart watchdog and the app-window launcher are **plain Node `.cjs` scripts run by node.exe**; the desktop shortcut's target is literally `node.exe + a .cjs path`, indistinguishable from any dev tool;
-- Shortcut creation/refresh is a **one-shot inline command** (system COM) at boot — no script file ever lands on disk for it;
+- Shortcut creation/refresh is a **one-shot inline command** (system COM) at boot — no script file ever lands on disk for it; and it is spawned **visibly (minimized)**, because a hidden-spawned powershell can be silently killed by aggressive AV (the root cause of the "shortcut silently never appears" report), while a console powershell always works. The trade-off is a brief minimized window flash at boot;
 - Opening URLs uses `rundll32 url.dll,FileProtocolHandler` (the classic Windows way) or native `open` / `xdg-open` elsewhere;
 - All generated code is plain readable text — no obfuscation, no encoded payloads, no registry / scheduled-task / service / run-key touches;
 - The only network activity is loopback port probes plus a version lookup on the npm registry.
