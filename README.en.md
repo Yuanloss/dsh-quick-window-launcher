@@ -41,7 +41,7 @@ Double-click **`DeepSeek Harness`** on your desktop (its target is simply `node.
 2. **Multi-signal liveness check**: when the port is closed it also checks the task-board ledger lock (`~/.dsh/task-board/ledger-v2.lock`) — if its owner PID is still alive, the previous instance is half-alive, so the launcher does **NOT** spawn a second instance (it would die inside another plugin's single-instance guard); instead it writes a diagnostic page and `dsh-launcher.log` and exits.
 3. If it really is not running, starts it (hidden) with the same Node binary / entry the plugin itself runs under.
 4. Waits until the UI is reachable (if the spawned instance exits early, an error page is shown instead of opening a window pointed at a dead port).
-5. **Opens it in a standalone app-mode window** — it finds Google Chrome or Microsoft Edge and launches it with `--app=<url>`, so the interface opens in its own borderless window. If no Chromium-based browser is installed it falls back to your default browser.
+5. **Opens it in a standalone app-mode window** — it finds Google Chrome or Microsoft Edge and launches it with `--app=<url>`, so the interface opens in its own borderless window. If no Chromium-based browser is installed it falls back to your default browser. **Before opening, the launcher fetches this process's authenticated URL (with the launch token) from the harness and lets it mint the auth cookie in the isolated window profile** — the app window is logged in just like your normal browser, so the "authentication required; reopen the URL printed by dsh web" screen never appears.
 
 Every launcher decision (port/lock check, spawn, readiness, window) is written to `~/.dsh/logs/dsh-launcher.log`. For troubleshooting run:
 

@@ -40,7 +40,7 @@ dsh web
 2. **多信号存活判定**：若端口未监听，还会检查任务看板账本锁（`~/.dsh/task-board/ledger-v2.lock`）的主人 PID 是否存活——若旧实例**活着但没在服务**，启动器**不会**再拉起第二个实例（那会撞上其他插件的单实例锁而死），而是写出诊断页与 `dsh-launcher.log` 并退出。
 3. 若确实未运行，则（隐藏地）用插件自身运行所用的同一个 Node 二进制 / 入口启动它。
 4. 等待 UI 可访问（若启动的实例提前退出，会写错误页而不是打开指向死端口的窗口）。
-5. **以独立应用窗口打开**——找到 Google Chrome 或 Microsoft Edge，用 `--app=<url>` 启动，界面会在它自己的无边框窗口里打开。若没有 Chromium 系浏览器，则回退到默认浏览器。
+5. **以独立应用窗口打开**——找到 Google Chrome 或 Microsoft Edge，用 `--app=<url>` 启动，界面会在它自己的无边框窗口里打开。若没有 Chromium 系浏览器，则回退到默认浏览器。**打开前启动器会先向 harness 取回当前进程的认证 URL（带启动令牌），向隔离窗口档案签发登录 cookie**——app 窗口与日常浏览器一样免登录，不会出现 "authentication required; reopen the URL printed by dsh web"。
 
 每次启动的动作（端口/锁判定、spawn、就绪、开窗）都会写入 `~/.dsh/logs/dsh-launcher.log`；排查问题可运行：
 
